@@ -5,9 +5,10 @@ import { Zap, AlertCircle } from 'lucide-react'
 interface Props {
   plan: 'free' | 'paid'
   searchesRemaining: number | null
+  onUpgrade?: () => void
 }
 
-export default function PlanBanner({ plan, searchesRemaining }: Props) {
+export default function PlanBanner({ plan, searchesRemaining, onUpgrade }: Props) {
   if (plan === 'paid') return null
 
   if (searchesRemaining === null || searchesRemaining > 0) {
@@ -18,7 +19,10 @@ export default function PlanBanner({ plan, searchesRemaining }: Props) {
           Free plan — <strong>{searchesRemaining ?? 1} search remaining</strong>.
           Upgrade for unlimited searches.
         </span>
-        <button className="ml-auto font-medium underline text-amber-700 hover:text-amber-900 shrink-0">
+        <button
+          onClick={onUpgrade}
+          className="ml-auto font-medium underline text-amber-700 hover:text-amber-900 shrink-0"
+        >
           Upgrade
         </button>
       </div>
@@ -31,7 +35,10 @@ export default function PlanBanner({ plan, searchesRemaining }: Props) {
       <span>
         You&apos;ve used your free search. <strong>Upgrade to continue.</strong>
       </span>
-      <button className="ml-auto font-medium underline text-red-700 hover:text-red-900 shrink-0">
+      <button
+        onClick={onUpgrade}
+        className="ml-auto font-medium underline text-red-700 hover:text-red-900 shrink-0"
+      >
         Upgrade — $49/mo
       </button>
     </div>

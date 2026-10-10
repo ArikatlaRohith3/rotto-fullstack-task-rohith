@@ -9,6 +9,7 @@ import CandidateCard from './CandidateCard'
 import ShortlistPanel from './ShortlistPanel'
 import SavedBriefs from './SavedBriefs'
 import PlanBanner from './PlanBanner'
+import UpgradeModal from './UpgradeModal'
 import { Search, Bookmark, List, LogOut, ChevronLeft, ChevronRight, Loader2, BarChart2, ArrowLeft, Sparkles } from 'lucide-react'
 
 interface Props {
@@ -37,6 +38,7 @@ export default function SearchPage({ token, userEmail }: Props) {
   const [plan, setPlan] = useState<{ plan: 'free' | 'paid'; searches_remaining: number | null } | null>(null)
   const [sidePanel, setSidePanel] = useState<'shortlists' | 'saved' | null>(null)
   const [shortlistsForCandidate, setShortlistsForCandidate] = useState<Record<string, string[]>>({})
+  const [showUpgrade, setShowUpgrade] = useState(false)
   const [similarState, setSimilarState] = useState<{
     sourceName: string
     sourceId: string
@@ -271,7 +273,7 @@ export default function SearchPage({ token, userEmail }: Props) {
         {/* Main content */}
         <main className="flex-1 min-w-0">
           {/* Plan banner */}
-          {plan && <PlanBanner plan={plan.plan} searchesRemaining={plan.searches_remaining} />}
+          {plan && <PlanBanner plan={plan.plan} searchesRemaining={plan.searches_remaining} onUpgrade={() => setShowUpgrade(true)} />}
 
           {/* Search bar */}
           <div className="mb-5">
@@ -500,6 +502,10 @@ export default function SearchPage({ token, userEmail }: Props) {
           </aside>
         )}
       </div>
+
+      {showUpgrade && (
+        <UpgradeModal token={token} onClose={() => setShowUpgrade(false)} />
+      )}
     </div>
   )
 }
