@@ -6,10 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "seed": "npx ts-node --project tsconfig.scripts.json scripts/load-candidates.ts"
+    "seed": "npx ts-node --project tsconfig.scripts.json scripts/load-candidates.ts",
+    "generate:candidates": "npx ts-node --project tsconfig.scripts.json scripts/generate-candidates.ts",
+    "generate:embeddings": "npx ts-node --project tsconfig.scripts.json scripts/generate-embeddings.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
+    "@google/generative-ai": "^0.24.1",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
     "clsx": "^2.1.1",

@@ -1,7 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { SearchFilters } from '@/lib/types'
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? '' })
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
 
 const SYSTEM_PROMPT = `You are a search filter extractor for a recruiting database.
 Extract structured search filters from a recruiter's plain-English brief.
@@ -47,14 +47,13 @@ export async function extractFilters(brief: string): Promise<SearchFilters> {
   // Sanitize input: strip any potential injection attempts
   const sanitized = brief.slice(0, 500).replace(/[<>]/g, '')
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 256,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: `Brief: ${sanitized}` }],
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-3.8-flash',
+    systemInstruction: SYSTEM_PROMPT,
   })
 
-  const text = message.content[0].type === 'text' ? message.content[0].text : '{}'
+  const result = await model.generateContent(`Brief: ${sanitized}`)
+  const text = result.response.text()
 
   // Extract JSON safely – never trust the model output
   const match = text.match(/\{[\s\S]*\}/)

@@ -9,7 +9,7 @@ import CandidateCard from './CandidateCard'
 import ShortlistPanel from './ShortlistPanel'
 import SavedBriefs from './SavedBriefs'
 import PlanBanner from './PlanBanner'
-import { Search, Bookmark, List, LogOut, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { Search, Bookmark, List, LogOut, ChevronLeft, ChevronRight, Loader2, BarChart2 } from 'lucide-react'
 
 interface Props {
   token: string
@@ -212,6 +212,13 @@ export default function SearchPage({ token, userEmail }: Props) {
           </div>
 
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => router.push('/analytics')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition"
+            >
+              <BarChart2 size={15} />
+              <span className="hidden sm:inline">Analytics</span>
+            </button>
             <button
               onClick={() => setSidePanel(sidePanel === 'saved' ? null : 'saved')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${sidePanel === 'saved' ? 'bg-brand-50 text-brand-600' : 'text-slate-600 hover:bg-slate-100'}`}

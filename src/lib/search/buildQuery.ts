@@ -9,7 +9,8 @@ const SUMMARY_FIELDS = [
 ].join(', ')
 
 export async function runSearch(
-  filters: SearchFilters
+  filters: SearchFilters,
+  briefEmbedding?: number[]
 ): Promise<{ ids: string[]; candidates: CandidateSummary[] }> {
   const supabase = createServiceClient()
 
@@ -26,7 +27,6 @@ export async function runSearch(
     query = query.eq('open_to_work', true)
   }
   if (filters.skills?.length) {
-    // Candidate must have ALL listed skills
     query = query.contains('skills', filters.skills)
   }
   if (filters.min_years_experience != null) {
@@ -36,7 +36,6 @@ export async function runSearch(
     query = query.lte('years_experience', filters.max_years_experience)
   }
   if (filters.role) {
-    // Split multi-word role and require each word individually (AND logic)
     const words = filters.role.trim().split(/\s+/).filter(Boolean)
     for (const word of words) {
       query = query.ilike('role', `%${word}%`)
@@ -52,7 +51,7 @@ export async function runSearch(
   }
   let rows = ((data ?? []) as unknown) as RowType[]
 
-  // Post-filter for JSONB fields (Supabase .filter cs doesn't do partial match)
+  // Post-filter for JSONB fields
   if (filters.company_type) {
     rows = rows.filter((r) =>
       r.experiences?.some((e) => e.company_type === filters.company_type)
@@ -70,14 +69,50 @@ export async function runSearch(
     )
   }
 
-  // Score and rank
-  const scored = rows
-    .map((r) => ({ ...r, score: scoreCandidate(r, filters) }))
-    .sort((a, b) => b.score - a.score)
+  // Semantic reranking: if we have a brief embedding, ask pgvector to reorder
+  if (briefEmbedding && rows.length > 1) {
+    const hardFilterIds = rows.map((r) => r.id)
+    const { data: reranked } = await supabase.rpc('rerank_by_embedding', {
+      p_embedding: JSON.stringify(briefEmbedding),
+      p_candidate_ids: hardFilterIds,
+      p_limit: 500,
+    })
+
+    if (reranked && reranked.length > 0) {
+      // Build lookup for semantic similarity scores
+      const simMap = new Map<string, number>(
+        (reranked as Array<{ id: string; similarity: number }>).map((r) => [r.id, r.similarity])
+      )
+
+      // Score each candidate: 60% semantic + 40% keyword score
+      const keywordScores = new Map(
+        rows.map((r) => [r.id, scoreCandidate(r, filters)])
+      )
+      const maxKw = Math.max(...Array.from(keywordScores.values()), 1)
+
+      rows.sort((a, b) => {
+        const simA = simMap.get(a.id) ?? 0
+        const simB = simMap.get(b.id) ?? 0
+        const kwA = (keywordScores.get(a.id) ?? 0) / maxKw
+        const kwB = (keywordScores.get(b.id) ?? 0) / maxKw
+        const scoreA = 0.6 * simA + 0.4 * kwA
+        const scoreB = 0.6 * simB + 0.4 * kwB
+        return scoreB - scoreA
+      })
+    } else {
+      // Fallback to keyword scoring if no embeddings exist yet
+      rows.sort((a, b) => scoreCandidate(b, filters) - scoreCandidate(a, filters))
+    }
+  } else {
+    // Pure keyword scoring
+    rows.sort((a, b) => scoreCandidate(b, filters) - scoreCandidate(a, filters))
+  }
 
   return {
-    ids: scored.map((r) => r.id),
-    candidates: scored.map(({ education: _ed, experiences: _ex, ...rest }) => rest as CandidateSummary),
+    ids: rows.map((r) => r.id),
+    candidates: rows.slice(0, 20).map(
+      ({ education: _ed, experiences: _ex, ...rest }) => rest as CandidateSummary
+    ),
   }
 }
 
@@ -90,31 +125,22 @@ function scoreCandidate(
 ): number {
   let score = 0
 
-  // Skills: +2 per matching skill (most important signal)
   if (filters.skills?.length) {
     score += filters.skills.filter((s) => c.skills?.includes(s)).length * 2
   }
-  // Seniority exact match
   if (filters.seniority && c.seniority === filters.seniority) score += 5
-  // Location
   if (filters.location && c.location_city?.toLowerCase().includes(filters.location.toLowerCase())) score += 3
-  // Open to work
   if (filters.open_to_work === true && c.open_to_work) score += 2
-  // Company type
   if (filters.company_type && c.experiences?.some((e) => e.company_type === filters.company_type)) score += 2
-  // Education level
   if (filters.education_level && c.education?.some((e) => e.degree === filters.education_level)) score += 3
-  // Education school
   if (filters.education_school) {
     const school = filters.education_school.toLowerCase()
     if (c.education?.some((e) => e.school?.toLowerCase().includes(school))) score += 3
   }
-  // Role keyword match
   if (filters.role) {
     const words = filters.role.toLowerCase().split(/\s+/).filter(Boolean)
     words.forEach((w) => { if (c.role?.toLowerCase().includes(w)) score += 1 })
   }
-  // Experience bonus: reward experience within requested range
   if (c.years_experience != null) {
     score += Math.min(c.years_experience, 15) * 0.05
   }

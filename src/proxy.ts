@@ -25,7 +25,7 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
 
   // Protect app routes
-  const protectedPrefixes = ['/search', '/candidates']
+  const protectedPrefixes = ['/search', '/candidates', '/analytics']
   if (!user && protectedPrefixes.some((p) => path.startsWith(p))) {
     return NextResponse.redirect(new URL('/login', request.url))
   }

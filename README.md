@@ -2,7 +2,7 @@
 
 ## How Search Works
 
-1. **Brief → Filters (LLM):** The recruiter types a plain-English brief. The server sends it to `claude-haiku-4-5` with a tightly-scoped system prompt that maps natural language to a fixed filter schema (`skills`, `location`, `seniority`, `role`, `open_to_work`, `company_type`, `education_level`, `education_school`, `min/max_years_experience`). The response is strictly whitelisted—no field the DB can't support gets through.
+1. **Brief → Filters (LLM):** The recruiter types a plain-English brief. The server sends it to `gemini-3.8-flash` with a tightly-scoped system prompt that maps natural language to a fixed filter schema (`skills`, `location`, `seniority`, `role`, `open_to_work`, `company_type`, `education_level`, `education_school`, `min/max_years_experience`). The response is strictly whitelisted—no field the DB can't support gets through.
 
 2. **Filters → SQL (Postgres):** The server builds a Supabase query using only the extracted fields. All filters are **hard** (AND logic): a candidate must match every filter specified. This prioritises precision—returning nothing beats returning the wrong people. GIN indexes on `skills[]` and JSONB columns make filtering fast.
 
@@ -19,10 +19,11 @@
 
 ## Model Choice
 
-**`claude-haiku-4-5`** (Anthropic). Chosen for:
-- Fast (~0.5 s median latency) — keeps total search time well under 3 s.
-- Low cost: ~$0.0002–$0.0004 per search call (input ~300 tokens, output ~80 tokens at Haiku pricing).
+**`gemini-3.8-flash`** (Google). Chosen for:
+- Fast (~0.4 s median latency) — keeps total search time well under 3 s.
+- Low cost: ~$0.00005–$0.0001 per search call (input ~300 tokens, output ~80 tokens at Flash pricing).
 - Reliable JSON output for constrained extraction tasks.
+- Generous free tier (1,500 requests/day) suitable for development and light production use.
 
 **Estimated cost per search:** < $0.001 including the API overhead.
 
@@ -58,6 +59,6 @@ Credentials:
 
 Environment variables required (set in `.env.local`):
 ```
-ANTHROPIC_API_KEY=...
+GEMINI_API_KEY=...
 STRIPE_WEBHOOK_SECRET=whsec_rotto_assessment_sample
 ```

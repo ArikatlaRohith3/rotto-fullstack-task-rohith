@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getAuthContext, unauthorized } from '@/lib/auth'
 import { extractFilters } from '@/lib/llm/extractFilters'
+import { embedText } from '@/lib/llm/embed'
 import { runSearch } from '@/lib/search/buildQuery'
 import { createServiceClient } from '@/lib/supabase/service'
 
@@ -28,28 +29,22 @@ export async function POST(req: NextRequest) {
 
   if (!usage.allowed) {
     return Response.json(
-      {
-        error: 'Search limit reached. Upgrade to continue searching.',
-        searches_remaining: 0,
-      },
+      { error: 'Search limit reached. Upgrade to continue searching.', searches_remaining: 0 },
       { status: 402 }
     )
   }
 
-  // Extract filters via LLM
-  let filters
-  try {
-    filters = await extractFilters(body.brief)
-  } catch (e) {
-    console.error('LLM extraction failed:', e)
-    filters = {}
-  }
+  // Extract filters + generate brief embedding in parallel
+  const [filters, briefEmbedding] = await Promise.all([
+    extractFilters(body.brief).catch((e) => { console.error('LLM extraction failed:', e); return {} }),
+    embedText(body.brief).catch(() => undefined),
+  ])
 
-  // Run the search
+  // Run the search with optional semantic reranking
   let ids: string[] = []
   let candidates
   try {
-    const result = await runSearch(filters)
+    const result = await runSearch(filters, briefEmbedding)
     ids = result.ids
     candidates = result.candidates
   } catch (e) {
