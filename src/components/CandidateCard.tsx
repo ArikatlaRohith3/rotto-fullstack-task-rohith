@@ -69,11 +69,14 @@ function OutreachModal({
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [error, setError] = useState('')
   const [recruiterName, setRecruiterName] = useState('')
   const [companyName, setCompanyName] = useState('')
+  const [regenCooldown, setRegenCooldown] = useState(false)
 
   async function draft() {
     setLoading(true)
+    setError('')
     try {
       const res = await fetch(`/api/people/${candidateId}/outreach`, {
         method: 'POST',
@@ -83,7 +86,13 @@ function OutreachModal({
       if (res.ok) {
         const data = await res.json() as { email: string }
         setEmail(data.email)
+        setRegenCooldown(true)
+        setTimeout(() => setRegenCooldown(false), 5000)
+      } else {
+        setError('Failed to generate email. Please try again.')
       }
+    } catch {
+      setError('Network error. Please check your connection.')
     } finally {
       setLoading(false)
     }
@@ -133,6 +142,9 @@ function OutreachModal({
                 />
               </div>
             </div>
+            {error && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{error}</p>
+            )}
             <button
               onClick={draft}
               disabled={loading}
@@ -167,10 +179,12 @@ function OutreachModal({
                 {copied ? 'Copied!' : 'Copy email'}
               </button>
               <button
-                onClick={() => setEmail('')}
-                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                onClick={() => { setEmail(''); setError('') }}
+                disabled={regenCooldown}
+                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition"
+                title={regenCooldown ? 'Wait a moment before regenerating' : 'Regenerate'}
               >
-                Regenerate
+                {regenCooldown ? 'Wait…' : 'Regenerate'}
               </button>
             </div>
           </div>

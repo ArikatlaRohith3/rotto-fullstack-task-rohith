@@ -8,6 +8,35 @@ const SUMMARY_FIELDS = [
   'years_experience', 'location_city', 'location_state', 'skills', 'open_to_work',
 ].join(', ')
 
+async function generateEmbedding(text: string): Promise<number[] | null> {
+  const key = process.env.GEMINI_API_KEY
+  if (!key) return null
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${key}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: { parts: [{ text: text.slice(0, 500) }] },
+          outputDimensionality: 1536,
+        }),
+      }
+    )
+    if (!res.ok) return null
+    const json = await res.json() as { embedding: { values: number[] } }
+    return json.embedding.values
+  } catch {
+    return null
+  }
+}
+
+function candidateToText(c: Record<string, unknown>): string {
+  const skills = Array.isArray(c.skills) ? (c.skills as string[]).join(', ') : ''
+  return [c.current_title, c.role, c.seniority, `${c.years_experience ?? ''}y exp`, skills, c.location_city]
+    .filter(Boolean).join(' | ')
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ candidate_id: string }> }
@@ -20,14 +49,27 @@ export async function GET(
 
   const { data: candidate } = await supabase
     .from('candidates')
-    .select('embedding, full_name, role')
+    .select('embedding, full_name, role, current_title, seniority, years_experience, skills, location_city')
     .eq('id', candidate_id)
     .single()
 
   if (!candidate) return Response.json({ error: 'Candidate not found' }, { status: 404 })
 
-  if (!candidate.embedding) {
-    // Fallback: find by same role when no embedding exists
+  let embedding = candidate.embedding as number[] | null
+
+  if (!embedding) {
+    // Generate on-demand so Find Similar works for every candidate
+    const text = candidateToText(candidate as unknown as Record<string, unknown>)
+    embedding = await generateEmbedding(text)
+
+    if (embedding) {
+      // Persist so future calls are instant
+      await supabase.from('candidates').update({ embedding }).eq('id', candidate_id)
+    }
+  }
+
+  if (!embedding) {
+    // Last-resort fallback: find by same role when embedding unavailable
     const { data: fallback } = await supabase
       .from('candidates')
       .select(SUMMARY_FIELDS)
