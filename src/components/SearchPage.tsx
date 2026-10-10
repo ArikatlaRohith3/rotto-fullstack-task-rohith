@@ -424,8 +424,10 @@ export default function SearchPage({ token, userEmail }: Props) {
               </div>
 
               {similarState.loading ? (
-                <div className="flex justify-center py-16">
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
                   <Loader2 size={24} className="text-brand-500 animate-spin" />
+                  <p className="text-sm text-slate-400">Finding candidates similar to {similarState.sourceName}…</p>
+                  <p className="text-xs text-slate-300">Building similarity index if needed</p>
                 </div>
               ) : similarState.results.length === 0 ? (
                 <p className="text-center py-12 text-slate-400 text-sm">No similar candidates found.</p>

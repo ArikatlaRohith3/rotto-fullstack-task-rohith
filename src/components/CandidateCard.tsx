@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { CandidateSummary, SearchFilters, Shortlist } from '@/lib/types'
+import { computeMatchChips } from '@/lib/search-utils'
 import { MapPin, Briefcase, Plus, Check, BookmarkPlus, X, Users, Mail, Copy, Loader2 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -25,34 +26,6 @@ const seniorityColors: Record<string, string> = {
   staff: 'bg-violet-50 text-violet-700',
   lead: 'bg-fuchsia-50 text-fuchsia-700',
   principal: 'bg-pink-50 text-pink-700',
-}
-
-function computeMatchChips(candidate: CandidateSummary, filters: SearchFilters): string[] {
-  const chips: string[] = []
-  const skillsLower = candidate.skills.map((s) => s.toLowerCase())
-
-  if (filters.skills?.length) {
-    filters.skills.forEach((skill) => {
-      if (skillsLower.includes(skill.toLowerCase())) chips.push(skill)
-    })
-  }
-  if (filters.location && candidate.location_city?.toLowerCase().includes(filters.location.toLowerCase())) {
-    chips.push(candidate.location_city!)
-  }
-  if (filters.seniority && candidate.seniority === filters.seniority) {
-    chips.push(filters.seniority.charAt(0).toUpperCase() + filters.seniority.slice(1))
-  }
-  if (filters.open_to_work && candidate.open_to_work) {
-    chips.push('Open to work')
-  }
-  if (
-    filters.min_years_experience != null &&
-    candidate.years_experience != null &&
-    candidate.years_experience >= filters.min_years_experience
-  ) {
-    chips.push(`${candidate.years_experience}y exp`)
-  }
-  return chips
 }
 
 function OutreachModal({

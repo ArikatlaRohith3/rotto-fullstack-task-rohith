@@ -5,5 +5,11 @@
   "installCommand": "npm install",
   "env": {
     "STRIPE_WEBHOOK_SECRET": "whsec_rotto_assessment_sample"
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/keepalive",
+      "schedule": "0 0 */5 * *"
+    }
+  ]
 }

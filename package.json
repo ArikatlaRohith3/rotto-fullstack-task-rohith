@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "seed": "npx ts-node --project tsconfig.scripts.json scripts/load-candidates.ts",
     "generate:candidates": "npx ts-node --project tsconfig.scripts.json scripts/generate-candidates.ts",
     "generate:embeddings": "npx ts-node --project tsconfig.scripts.json scripts/generate-embeddings.ts"
@@ -27,10 +29,13 @@
     "@types/node": "^22.15.29",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
+    "@vitejs/plugin-react": "^6.1.2",
     "autoprefixer": "^10.4.21",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^5.0.3"
   }
 }
