@@ -41,3 +41,6 @@ supabase/.temp/
 
 # data (large file — copied in during setup)
 data/candidates.json
+
+.vercel
+.env*

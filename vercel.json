@@ -1,0 +1,9 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "devCommand": "next dev",
+  "installCommand": "npm install",
+  "env": {
+    "STRIPE_WEBHOOK_SECRET": "whsec_rotto_assessment_sample"
+  }
+}
