@@ -9,7 +9,7 @@ import CandidateCard from './CandidateCard'
 import ShortlistPanel from './ShortlistPanel'
 import SavedBriefs from './SavedBriefs'
 import PlanBanner from './PlanBanner'
-import { Search, Bookmark, List, LogOut, ChevronLeft, ChevronRight, Loader2, BarChart2 } from 'lucide-react'
+import { Search, Bookmark, List, LogOut, ChevronLeft, ChevronRight, Loader2, BarChart2, ArrowLeft, Sparkles } from 'lucide-react'
 
 interface Props {
   token: string
@@ -37,6 +37,13 @@ export default function SearchPage({ token, userEmail }: Props) {
   const [plan, setPlan] = useState<{ plan: 'free' | 'paid'; searches_remaining: number | null } | null>(null)
   const [sidePanel, setSidePanel] = useState<'shortlists' | 'saved' | null>(null)
   const [shortlistsForCandidate, setShortlistsForCandidate] = useState<Record<string, string[]>>({})
+  const [similarState, setSimilarState] = useState<{
+    sourceName: string
+    sourceId: string
+    results: CandidateSummary[]
+    semantic: boolean
+    loading: boolean
+  } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const authHeader = { Authorization: `Bearer ${token}` }
@@ -191,6 +198,21 @@ export default function SearchPage({ token, userEmail }: Props) {
     })
   }
 
+  async function handleFindSimilar(id: string, name: string) {
+    setSimilarState({ sourceName: name, sourceId: id, results: [], semantic: false, loading: true })
+    try {
+      const res = await fetch(`/api/search/similar/${id}`, { headers: authHeader })
+      if (res.ok) {
+        const data = await res.json() as { results: CandidateSummary[]; semantic: boolean }
+        setSimilarState({ sourceName: name, sourceId: id, results: data.results, semantic: data.semantic, loading: false })
+      } else {
+        setSimilarState(null)
+      }
+    } catch {
+      setSimilarState(null)
+    }
+  }
+
   async function handleSignOut() {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -334,6 +356,9 @@ export default function SearchPage({ token, userEmail }: Props) {
                       shortlists={shortlists}
                       shortlistedIn={shortlistsForCandidate[candidate.id] ?? []}
                       onAddToShortlist={handleAddToShortlist}
+                      matchFilters={searchState.filters}
+                      onFindSimilar={handleFindSimilar}
+                      token={token}
                       onCreateShortlist={async (name) => {
                         const res = await fetch('/api/shortlists', {
                           method: 'POST',
@@ -375,6 +400,64 @@ export default function SearchPage({ token, userEmail }: Props) {
                 </div>
               )}
             </>
+          )}
+
+          {/* Similar candidates panel */}
+          {similarState && (
+            <div className="mt-8">
+              <div className="flex items-center gap-3 mb-4">
+                <button
+                  onClick={() => setSimilarState(null)}
+                  className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition"
+                >
+                  <ArrowLeft size={14} />
+                  Back to results
+                </button>
+                <div className="flex-1 h-px bg-slate-200" />
+                <div className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                  <Sparkles size={14} className="text-brand-500" />
+                  Similar to {similarState.sourceName}
+                  {similarState.semantic && (
+                    <span className="text-xs text-slate-400 font-normal">(semantic)</span>
+                  )}
+                </div>
+              </div>
+
+              {similarState.loading ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 size={24} className="text-brand-500 animate-spin" />
+                </div>
+              ) : similarState.results.length === 0 ? (
+                <p className="text-center py-12 text-slate-400 text-sm">No similar candidates found.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {similarState.results.map((candidate) => (
+                    <CandidateCard
+                      key={candidate.id}
+                      candidate={candidate}
+                      shortlists={shortlists}
+                      shortlistedIn={shortlistsForCandidate[candidate.id] ?? []}
+                      onAddToShortlist={handleAddToShortlist}
+                      onFindSimilar={handleFindSimilar}
+                      token={token}
+                      onCreateShortlist={async (name) => {
+                        const res = await fetch('/api/shortlists', {
+                          method: 'POST',
+                          headers: { ...authHeader, 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ name }),
+                        })
+                        if (res.ok) {
+                          const newList = await res.json()
+                          setShortlists((prev) => [newList, ...prev])
+                          return newList.id
+                        }
+                        return null
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Empty home state */}
