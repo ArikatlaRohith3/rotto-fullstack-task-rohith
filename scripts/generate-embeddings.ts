@@ -1,20 +1,32 @@
 /**
- * Generates Gemini text-embedding-004 embeddings for all candidates without one.
+ * Generates Gemini embeddings for all candidates without one.
  * Run: npx ts-node --project tsconfig.scripts.json scripts/generate-embeddings.ts
  */
 import { createClient } from '@supabase/supabase-js'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const GEMINI_KEY = process.env.GEMINI_API_KEY!
 
 const db = createClient(SUPABASE_URL, SERVICE_KEY)
-const genAI = new GoogleGenerativeAI(GEMINI_KEY)
-const embModel = genAI.getGenerativeModel({ model: 'text-embedding-004' })
 
-const BATCH_SIZE = 50  // candidates per DB fetch
-const EMBED_CONCURRENCY = 5  // parallel embedding calls
+const BATCH_SIZE = 50
+const EMBED_CONCURRENCY = 5
+const EMBED_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${GEMINI_KEY}`
+
+async function embedOne(text: string): Promise<number[]> {
+  const res = await fetch(EMBED_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content: { parts: [{ text: text.slice(0, 500) }] },
+      outputDimensionality: 1536,
+    }),
+  })
+  if (!res.ok) throw new Error(`Embed failed: ${res.status} ${await res.text()}`)
+  const json = await res.json() as { embedding: { values: number[] } }
+  return json.embedding.values
+}
 
 function candidateToText(c: Record<string, unknown>): string {
   const skills = Array.isArray(c.skills) ? (c.skills as string[]).join(', ') : ''
@@ -24,7 +36,7 @@ function candidateToText(c: Record<string, unknown>): string {
         .join('; ')
     : ''
   const exp = Array.isArray(c.experiences)
-    ? (c.experiences as Array<{ company_type?: string; company?: string }>)
+    ? (c.experiences as Array<{ company_type?: string }>)
         .map((e) => e.company_type)
         .filter(Boolean)
         .join(', ')
@@ -39,20 +51,9 @@ function candidateToText(c: Record<string, unknown>): string {
   ].filter(Boolean).join('. ')
 }
 
-async function embedBatch(texts: string[]): Promise<number[][]> {
-  const results = await Promise.all(
-    texts.map(async (text) => {
-      const res = await embModel.embedContent(text)
-      return res.embedding.values
-    })
-  )
-  return results
-}
-
 async function main() {
   console.log('Fetching candidates without embeddings...')
 
-  let offset = 0
   let total = 0
 
   while (true) {
@@ -60,18 +61,15 @@ async function main() {
       .from('candidates')
       .select('id, role, seniority, location_city, skills, years_experience, open_to_work, education, experiences')
       .is('embedding', null)
-      .range(offset, offset + BATCH_SIZE - 1)
+      .range(0, BATCH_SIZE - 1)
 
     if (error) { console.error(error.message); process.exit(1) }
     if (!data || data.length === 0) break
 
-    // Embed in chunks of EMBED_CONCURRENCY
     for (let i = 0; i < data.length; i += EMBED_CONCURRENCY) {
       const chunk = data.slice(i, i + EMBED_CONCURRENCY)
-      const texts = chunk.map(candidateToText)
-      const embeddings = await embedBatch(texts)
+      const embeddings = await Promise.all(chunk.map((c) => embedOne(candidateToText(c))))
 
-      // Update each candidate
       await Promise.all(
         chunk.map((c, j) =>
           db.from('candidates').update({ embedding: JSON.stringify(embeddings[j]) }).eq('id', c.id)
@@ -80,10 +78,11 @@ async function main() {
     }
 
     total += data.length
-    console.log(`  Embedded ${total} candidates...`)
+    if (total % 500 === 0 || data.length < BATCH_SIZE) {
+      console.log(`  Embedded ${total} candidates...`)
+    }
 
     if (data.length < BATCH_SIZE) break
-    // Don't advance offset since we're filtering is null — processed rows drop out
   }
 
   console.log(`Done. ${total} embeddings generated.`)
